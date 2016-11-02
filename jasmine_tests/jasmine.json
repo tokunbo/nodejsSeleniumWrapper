@@ -1,0 +1,12 @@
+{
+    "spec_dir": "specs",
+    "spec_files": [
+        "*2*pec.js"
+    ],
+    "helpers": [
+        "../helpers/*_helper.js"
+    ],
+    "stopSpecOnExpectationFailure": true,
+    "random": false,
+    "child_processes": 3
+}
