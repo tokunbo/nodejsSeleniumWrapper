@@ -19,3 +19,5 @@ of .then(func(){}) chains all over the place. Between that and confusing errors 
 >
 
 This may not be too special to hardcore nodejs people out there, but for me async&await takes nodejs from unviable to actually usable. Though I still just pick a synchronous language like ruby/python/etc, if nodejs is a __requirement__ for a project I'm working on, I'd have to be allowed to use asyncawait or I'd just go crazy.
+
+* And look into the jasmine_tests dir for even more craziness

@@ -6,39 +6,26 @@ var async = require('asyncawait/async'),
     experimental = require('../utils/experimental.js'),
     asyncIt = experimental.asyncIt;
 
-describe("Sanrio Online Store - ", function() {
-  it('Add bag to shopping cart', asyncIt(function(done){
-    var driver = this.driver, products;
+describe("YAHOO search - ", function() {
 
-    driver.findElements(By.css("button[title='Close']"))
-    .forEach(function(button) {
-      button.click();
-    });
+  function search(driver, searchString) {
+    var searchField = driver.findElement(By.id("uh-search-box"));
+    searchField.click();
+    searchField.clear();
+    searchField.sendKeys(searchString);
+    driver.findElement(By.id("uh-search-button")).click();
+  }
 
-    driver.findElement(By.linkText("Bags")).click();
-
-    products = driver.findElements(By.css("div[class='product-summary']"))
-    .map(function(product) {
-      return JSON.parse(product.findElement(By.tagName("a"))
-        .getAttribute("data-analytics-product-impression"));
-    });
-
-    console.log(products.length + " products on page.");
+  beforeEach(asyncIt(function(done) {
+    this.driver.get("https://www.yahoo.com/");
   }));
 
-  it('Add all page1 HomeOffice items :SLOW', asyncIt(function(done){
-    this.driver.get("http://www.google.com");
-    console.log("I'm done in 5s");
-    setTimeout(done,5000);
-  }));
-
-  it('I am going to be skipped :SKIP', asyncIt(function(done) {
-    console.log("You will not see this message.");
-    setTimeout(function() {
-      console.log("And you'll Never see this message either.");
-      done();
-    }, 3000);
+  it('Does YAHOO Search work', asyncIt(function(done){
+    var driver = this.driver, searchResults;
+    search(driver, "Pokemon");
+    searchResults = driver.findElements(By.css('[class*="dd algo"]'));
+    expect(searchResults).toBeTruthy();
+    expect(searchResults.length).toBeGreaterThan(1);
+    searchResults[1].click();
   }));
 });
-
-

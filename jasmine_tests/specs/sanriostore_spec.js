@@ -48,14 +48,6 @@ describe("Sanrio Online Store, Characters - ", function() {
       await(driver.navigate().back());
     });
   }));
-
-  it('I am going to be skipped :SKIP', function(done) {
-    console.log("You will not see this message.");
-    setTimeout(function() {
-      console.log("And you'll Never see this message either.");
-      done();
-    }, 3000);
-  });
 });
 
 

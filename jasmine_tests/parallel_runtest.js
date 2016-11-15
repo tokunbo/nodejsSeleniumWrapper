@@ -44,18 +44,17 @@ function taskMaster(t_id,jconfig) {
 }
 
 function printReport(moreInfo) {
-  console.log("====================================");
+  console.log("==== BEGIN REPORT ON SPEC FILE " + moreInfo.fileName + " ====");
   console.log(moreInfo);
-  if(!moreInfo.everythingPassed) {
-    moreInfo.completedSpecs.forEach(function(spec) {
-      if(spec.status != 'passed') {
-        console.log("FAILED " + spec.fullName);
-        spec.failedExpectations.forEach(function(e){
-          console.log(e);
-        });
-      }
-    });
-  }
+  moreInfo.completedSpecs.forEach(function(spec) {
+    if(spec.failedExpectations.length) {
+      console.log("FAILED " + spec.fullName);
+      spec.failedExpectations.forEach(function(e){
+        console.log(e.message ? e.message + "\n" + e.stack : e.stack);
+      });
+    }
+  });
+  console.log("==== END REPORT ON SPEC FILE " + moreInfo.fileName + " ====");
   console.log("\n\n");
 }
 
@@ -74,13 +73,13 @@ function main() {
   });
   jasmine = null;//I just needed it for the list of spec files.
 
-  if(!isNumeric(childprocCount)) {
-    throw new Error("'child_processes' value in jasmine.json not valid number");
+  if(!isNumeric(childprocCount) || childprocCount < 1) {
+    throw new Error("'child_processes' value in jasmine.json not valid.");
   }
 
   logmsg("BEGIN: Starting " + childprocCount + " child processes to work on " +
     globalSpecFiles.length + " spec files.");
-  logmsg(globalSpecFiles);
+  logmsg("Queued spec files: " + globalSpecFiles);
 
   for(x = 0; x < childprocCount; x++) {
     taskmasters.push(taskMaster(x,jconfig));
@@ -94,7 +93,7 @@ function main() {
       printReport(retval.moreInfo);
     });
   });
-  logmsg("END: All done, total runtime " + process.hrtime(startTime)[0] +
+  logmsg("TESTING ENDED: total runtime " + process.hrtime(startTime)[0] +
     "s with exitcode=" + exitCode); 
   return exitCode;
 }

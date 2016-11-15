@@ -65,20 +65,6 @@ function catchIt(fn) {
   };
 };
 
-function jasmineItExtend(jasmine) {
-  var  jEnv = jasmine.getEnv ? jasmine.getEnv() : jasmine.env,
-    origIt = jEnv.it; 
-  jEnv.it = function(specdesc, originalfn) {
-    origIt(specdesc, function(done){
-      if (jasmine.skip) {
-        jasmine.skip = false;
-        return done();
-      }
-      originalfn.bind(this)(done);
-    });
-  };
-};
-
 function makeTimeoutPromise(originalFunction, maxRuntime) {
   return function() {
     var originalArguments = arguments,
@@ -181,7 +167,6 @@ module.exports = {
   awaitWebElements: awaitWebElements,
   awaitSeleniumDriver: awaitSeleniumDriver,
   asyncIt: asyncIt,
-  catchIt: catchIt,
-  jasmineItExtend: jasmineItExtend
+  catchIt: catchIt
 };
 

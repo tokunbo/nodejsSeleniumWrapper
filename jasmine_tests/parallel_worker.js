@@ -31,13 +31,19 @@ process.on('message', function(data) {
   var jasmine = new(require('jasmine')),
     JasmineReporters = require('jasmine-reporters'),
     jconfig = data.jconfig,
-    junitReporter = new JasmineReporters
-      .JUnitXmlReporter(__dirname + '/testresults', true, true, 'test-'),
     specFile = data.specFile;
+
+  /*This JUnit reporter must be added before anything else happens
+    to this jasmine instance, otherwise junit .xml will NOT be created.*/
+  jasmine.addReporter(new JasmineReporters.JUnitXmlReporter({
+    savePath: __dirname + '/testresults',
+    consolidate: true,
+    useDotNotation: true,
+    filePrefix: 'test-',
+    consolidateAll: false }));
 
   globalSpecFile = specFile;
   jconfig.spec_files = [specFile];
-  jasmine.loadConfig(jconfig);
   reporter.j = jasmine;
   reporter.jasmineDone = function(passed) {
     var everythingPassed = true;
@@ -49,11 +55,9 @@ process.on('message', function(data) {
     this.moreInfo.fileName = specFile;
     this.moreInfo.everythingPassed = everythingPassed;
     process.send({ j: this.j, moreInfo: this.moreInfo, passed: passed });
-    process.exit(everythingPassed ? 0 : 1);
   };
-  jasmine.jasmine.exit = function(){};//Prevent jasmine from auto-exit.
   jasmine.addReporter(reporter);
-  jasmine.addReporter(junitReporter);
+  jasmine.loadConfig(jconfig);
   jasmine.execute();
 });
 

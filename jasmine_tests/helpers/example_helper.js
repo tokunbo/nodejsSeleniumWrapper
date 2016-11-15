@@ -10,7 +10,6 @@ var webdriver = require('selenium-webdriver'),
 
 jasmine.DEFAULT_TIMEOUT_INTERVAL = defaultTimeOut;
 experimental.jasmineMoreInfo(jasmine);
-experimental.jasmineItExtend(jasmine);
 
 beforeAll(function(done) {
   this.driver = new webdriver.Builder('./chromedriver')
@@ -29,14 +28,10 @@ beforeEach(function() {
     console.log("SLOW TEST: "+specDesc);
     jasmine.DEFAULT_TIMEOUT_INTERVAL = 1200 * 1000;
   }
-  if (specDesc.indexOf(":SKIP") > -1 ) {
-    console.log("SKIPPING TEST: "+specDesc);
-    jasmine.skip = true;
-  }
 });
 
 afterEach(asyncIt(function(done) {
-  if(jasmine.moreInfo.currentSpec.status != 'passed') {
+  if(jasmine.moreInfo.currentSpec.failedExpectations.length) {
     fs.writeFileSync(
       jasmine.moreInfo.currentSpec.fullName + ".png",
       this.driver.takeScreenshot(),
