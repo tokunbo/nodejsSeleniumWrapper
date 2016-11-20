@@ -8,5 +8,12 @@
     ],
     "stopSpecOnExpectationFailure": true,
     "random": false,
-    "child_processes": 3
+    "child_processes": 3,
+    "junitReporterOpts": {
+        "savePath": "/testresults",
+        "consolidate": true,
+        "useDotNotation": true,
+        "filePrefix": "test-",
+        "consolidateAll": false 
+    }
 }

@@ -3,7 +3,7 @@ var fs = require('fs'),
   async = require('asyncawait/async'),
   await = require('asyncawait/await'),
   path = require('path'),
-  Jasmine = require('jasmine'),
+  glob = require('glob'),
   globalSpecFiles;
 
 function logmsg(msg) {
@@ -18,9 +18,26 @@ function isNumeric(n) {
 
 function worker(jconfig,specFile) {
   return new Promise(function(resolve, reject) {
-    var pid = child_process.fork(__dirname + '/parallel_worker.js');
+    var pid = child_process.fork(__dirname + '/parallel_worker.js',
+      {silent: true}),
+      pidStdout = "",
+      pidStderr = "";
     pid.on('message', function(data) {
-      resolve(data);
+      var result = {};
+      console.log(specFile + ":STDOUT:\n" + pidStdout);
+      console.log("\n");
+      console.log(specFile + ":STDERR:\n" + pidStderr);
+      console.log("\n");
+      result.pidData = data;
+      result.pidStdout = pidStdout;
+      result.pidStderr = pidStderr;
+      resolve(result);
+    });
+    pid.stdout && pid.stdout.on('data', function(data) {
+      pidStdout += data;
+    });
+    pid.stdout && pid.stderr.on('data', function(data) {
+      pidStderr += data;
     });
     pid.send({
       jconfig: jconfig, 
@@ -43,35 +60,43 @@ function taskMaster(t_id,jconfig) {
   })();
 }
 
-function printReport(moreInfo) {
-  console.log("==== BEGIN REPORT ON SPEC FILE " + moreInfo.fileName + " ====");
-  console.log(moreInfo);
+function printReport(retval) {
+  var moreInfo = retval.pidData.moreInfo;
+  console.log("==== BEGIN REPORT ON SPEC FILE " + moreInfo.specFile + " ====");
   moreInfo.completedSpecs.forEach(function(spec) {
     if(spec.failedExpectations.length) {
       console.log("FAILED " + spec.fullName);
       spec.failedExpectations.forEach(function(e){
         console.log(e.message ? e.message + "\n" + e.stack : e.stack);
       });
+    } else {
+      console.log("No failures detected for " + moreInfo.specFile);
     }
   });
-  console.log("==== END REPORT ON SPEC FILE " + moreInfo.fileName + " ====");
   console.log("\n\n");
+  console.log("==== END REPORT ON SPEC FILE " + moreInfo.specFile + " ====");
+  console.log("\n\n");
+}
+
+function getSpecFileList(jconfig) {
+  var specFiles = [];
+  jconfig.spec_files.forEach(function(globPattern) {
+    glob.sync(jconfig.spec_dir + "/" + globPattern).forEach(function(filePath) {
+      specFiles.push(path.posix.basename(filePath));
+    });
+  });
+  return specFiles;
 }
 
 function main() {
   var exitCode = 0,
     startTime = process.hrtime(),
-    jasmine = new Jasmine(), 
     taskmasters = [],
     data = fs.readFileSync(process.env['JASMINE_CONFIG_PATH'], 'utf-8'),
     jconfig = JSON.parse(data),
     childprocCount = parseInt(jconfig.child_processes);
 
-  jasmine.loadConfigFile(process.env['JASMINE_CONFIG_PATH']);
-  globalSpecFiles = jasmine.specFiles.map(function(filePath) {
-    return path.posix.basename(filePath);
-  });
-  jasmine = null;//I just needed it for the list of spec files.
+  globalSpecFiles = getSpecFileList(jconfig);
 
   if(!isNumeric(childprocCount) || childprocCount < 1) {
     throw new Error("'child_processes' value in jasmine.json not valid.");
@@ -87,10 +112,10 @@ function main() {
 
   await(Promise.all(taskmasters)).forEach(function(retvals) {
     retvals.forEach(function(retval) {
-      if(!retval.moreInfo.everythingPassed) {
+      if(retval.pidData.moreInfo.failureDetected) {
         exitCode += 1;
       }
-      printReport(retval.moreInfo);
+      printReport(retval);
     });
   });
   logmsg("TESTING ENDED: total runtime " + process.hrtime(startTime)[0] +
@@ -98,4 +123,7 @@ function main() {
   return exitCode;
 }
 
-async(main)().then(process.exit);
+async(main)().then(process.exit).catch(function(err) {
+  console.log("ERROR IN MAIN!\n " + err.stack);
+  process.exit(99);
+});

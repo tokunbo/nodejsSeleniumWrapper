@@ -13,7 +13,7 @@ npm install
 ...then go get the newest chromedriver binary and put it in this dir, then...
 
 ```
-node ./parallel_runtest.js 
+JASMINE_CONFIG_PATH=jasmine.json node ./parallel_runtest.js 
 ```
 
 And I leave it an exercise for the reader to understand what I did here ^_^;
