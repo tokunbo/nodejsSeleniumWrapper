@@ -10,6 +10,9 @@ var dataCollectingReporter = {
     this.moreInfo.completedSpecs = [];
     this.moreInfo.metaData = metaData;
   },
+  specStarted: function(specInfo) {
+    this.moreInfo.currentSpec = specInfo;
+  },
   specDone: function(specInfo) {
     this.moreInfo.completedSpecs.push(specInfo);
   },
@@ -29,25 +32,22 @@ var dataCollectingReporter = {
   }
 };
 
-
 process.on('unhandledRejection', function(err, p) {
-/*BUG: https://github.com/jasmine/jasmine/issues/1213.
-
-  var errmsg = "unhandledRejection from child pid";
-  console.error(errmsg + "\n  " + err.stack + p + dataCollectingReporter); */
+/*BUG: https://github.com/jasmine/jasmine/issues/1213. */
+  var errmsg = "unhandledRejection from child pid ";
+  errmsg += "\n" + err.stack + p + dataCollectingReporter;
+  console.log(errmsg);
 });
 
 process.on('uncaughtException', function(err) {
-  console.log("CHILD PID ERROR: "+err.stack);
-  process.send(err);
-  process.exit();
+  var errmsg = "uncaughtException from child pid: \n" + err + err.stack;
+  console.log(errmsg);
 });
 
 process.on('message', function(data) {
   var jasmine = new (require('jasmine')),
     jconfig = data.jconfig,
     specFile = data.specFile;
-
   /*This JUnit reporter must be added before anything else happens
     to this jasmine instance, otherwise junit .xml will NOT be created.*/
   jconfig.junitReporterOpts.savePath = __dirname + '/' +
@@ -60,4 +60,3 @@ process.on('message', function(data) {
   jasmine.loadConfig(jconfig);
   jasmine.execute();
 });
-

@@ -9,6 +9,7 @@
     "stopSpecOnExpectationFailure": true,
     "random": false,
     "child_processes": 3,
+    "child_silence": true,
     "junitReporterOpts": {
         "savePath": "/testresults",
         "consolidate": true,

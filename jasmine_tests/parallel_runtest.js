@@ -1,7 +1,8 @@
+'use strict';
+
 var fs = require('fs'),
+  jconfig,
   child_process = require('child_process'),
-  async = require('asyncawait/async'),
-  await = require('asyncawait/await'),
   path = require('path'),
   glob = require('glob'),
   globalSpecFiles;
@@ -16,64 +17,63 @@ function isNumeric(n) {
   return !isNaN(parseFloat(n)) && isFinite(n);
 }
 
-function worker(jconfig,specFile) {
-  return new Promise(function(resolve, reject) {
-    var pid = child_process.fork(__dirname + '/parallel_worker.js',
-      {silent: true}),
-      pidStdout = "",
-      pidStderr = "";
+function worker(jconfig, specFile) {
+  var pid = child_process.fork(__dirname + '/parallel_worker.js',
+    {silent: jconfig.child_silence}),
+    pidStdout = "", pidStderr = "", waitpidPromise;
+
+  waitpidPromise = new Promise(function(resolve, reject) {
     pid.on('message', function(data) {
       var result = {};
-      console.log(specFile + ":STDOUT:\n" + pidStdout);
-      console.log("\n");
-      console.log(specFile + ":STDERR:\n" + pidStderr);
-      console.log("\n");
       result.pidData = data;
       result.pidStdout = pidStdout;
       result.pidStderr = pidStderr;
       resolve(result);
     });
-    pid.stdout && pid.stdout.on('data', function(data) {
-      pidStdout += data;
-    });
-    pid.stdout && pid.stderr.on('data', function(data) {
-      pidStderr += data;
-    });
-    pid.send({
-      jconfig: jconfig, 
-      specFile: specFile
-    });
   });
+
+  pid.stdout && pid.stdout.on('data', function(data) {
+    pidStdout += data;
+  });
+
+  pid.stdout && pid.stderr.on('data', function(data) {
+    pidStderr += data;
+  });
+
+  pid.send({jconfig: jconfig, specFile: specFile});
+  return waitpidPromise;
 }
 
-function taskMaster(t_id,jconfig) {
-  return async(function(){
-    var specFile, results=[], tmName="taskMaster:"+t_id;
-    logmsg(tmName + " started.");
-    while(specFile = globalSpecFiles.pop()) {
-      logmsg(tmName + " starting work on "+specFile);
-      results.push(await(worker(jconfig,specFile)));
-      logmsg(tmName + " finished " + specFile); 
-    }
-    logmsg(tmName + " No more files to work on, exiting...");
-    return results;
-  })();
+async function taskManager(t_id, jconfig) {
+  var specFile, results=[], tmName="taskManager:"+t_id;
+  logmsg(tmName + " started.");
+  while(specFile = globalSpecFiles.pop()) {
+    logmsg(tmName + " starting work on "+specFile);
+    results.push(await worker(jconfig, specFile));
+    logmsg(tmName + " finished " + specFile);
+  }
+  logmsg(tmName + " No more files to work on, exiting...");
+  return results;
 }
 
 function printReport(retval) {
-  var moreInfo = retval.pidData.moreInfo;
+  var moreInfo = retval.pidData.moreInfo, failDetected = false;
   console.log("==== BEGIN REPORT ON SPEC FILE " + moreInfo.specFile + " ====");
-  moreInfo.completedSpecs.forEach(function(spec) {
-    if(spec.failedExpectations.length) {
-      console.log("FAILED " + spec.fullName);
-      spec.failedExpectations.forEach(function(e){
-        console.log(e.message ? e.message + "\n" + e.stack : e.stack);
-      });
-    } else {
-      console.log("No failures detected for " + moreInfo.specFile);
-    }
-  });
-  console.log("\n\n");
+  for(let spec of moreInfo.completedSpecs) {
+    moreInfo.completedSpecs.forEach(function(spec) {
+      if(spec.failedExpectations.length) {
+        failDetected = true;
+      }
+    });
+  }
+  console.log(" ---" + moreInfo.specFile + ":STDOUT:\n" + retval.pidStdout);
+  console.log(" ---END STDOUT\n");
+  console.log(" ---" + moreInfo.specFile + ":STDERR:\n" + retval.pidStderr);
+  console.log(" ---END STDERR\n");
+  if(!failDetected) {
+    console.log("No failures detected for " + moreInfo.specFile);
+  }
+  console.log("\n");
   console.log("==== END REPORT ON SPEC FILE " + moreInfo.specFile + " ====");
   console.log("\n\n");
 }
@@ -88,14 +88,17 @@ function getSpecFileList(jconfig) {
   return specFiles;
 }
 
-function main() {
+async function main() {
   var exitCode = 0,
+    q,
     startTime = process.hrtime(),
-    taskmasters = [],
-    data = fs.readFileSync(process.env['JASMINE_CONFIG_PATH'], 'utf-8'),
-    jconfig = JSON.parse(data),
-    childprocCount = parseInt(jconfig.child_processes);
+    taskmanagers = [],
+    childprocCount;
 
+  jconfig = JSON.parse(
+    fs.readFileSync(process.env['JASMINE_CONFIG_PATH'], 'utf-8')
+  );
+  childprocCount = parseInt(jconfig.child_processes)
   globalSpecFiles = getSpecFileList(jconfig);
 
   if(!isNumeric(childprocCount) || childprocCount < 1) {
@@ -106,11 +109,14 @@ function main() {
     globalSpecFiles.length + " spec files.");
   logmsg("Queued spec files: " + globalSpecFiles);
 
-  for(x = 0; x < childprocCount; x++) {
-    taskmasters.push(taskMaster(x,jconfig));
+  for(q = 0; q < childprocCount; q++) {
+    taskmanagers.push(taskManager(q, jconfig));
   }
 
-  await(Promise.all(taskmasters)).forEach(function(retvals) {
+  logmsg("Waiting on taskmanagers...");
+  await Promise.all(taskmanagers);
+  logmsg("All taskmanagers have exited.");
+  (await Promise.all(taskmanagers)).forEach(function(retvals) {
     retvals.forEach(function(retval) {
       if(retval.pidData.moreInfo.failureDetected) {
         exitCode += 1;
@@ -119,11 +125,18 @@ function main() {
     });
   });
   logmsg("TESTING ENDED: total runtime " + process.hrtime(startTime)[0] +
-    "s with exitcode=" + exitCode); 
+    "s with exitcode=" + exitCode);
   return exitCode;
 }
 
-async(main)().then(process.exit).catch(function(err) {
+main()
+.then(function(exitCode) {
+  console.log("2sec exit delay to allow all stdout to print ¯\\_(ツ)_/¯");
+  setTimeout(function() {
+    process.exit(exitCode);
+  },2000);
+})
+.catch(function(err) {
   console.log("ERROR IN MAIN!\n " + err.stack);
   process.exit(99);
 });

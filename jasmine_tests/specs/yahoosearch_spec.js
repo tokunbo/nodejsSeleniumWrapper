@@ -1,31 +1,34 @@
 'use strict';
 
-var async = require('asyncawait/async'),
-    await = require('asyncawait/await'),
-    By = require('selenium-webdriver').By,
-    experimental = require('../utils/experimental.js'),
-    asyncIt = experimental.asyncIt;
+var By = require('selenium-webdriver').By,
+  doIt = require('../utils/experimental.js').doIt;
 
 describe("YAHOO search - ", function() {
+  var driver = null;
 
-  function search(driver, searchString) {
-    var searchField = driver.findElement(By.id("uh-search-box"));
-    searchField.click();
-    searchField.clear();
-    searchField.sendKeys(searchString);
-    driver.findElement(By.id("uh-search-button")).click();
+  beforeAll(function() {
+    driver = this.driver;
+  });
+
+  async function search(searchString) {
+    var searchField = await driver.findElement(By.id("uh-search-box"));
+    await searchField.click();
+    await searchField.clear();
+    await searchField.sendKeys(searchString);
+    await (await driver.findElement(By.id("uh-search-button"))).click();
   }
 
-  beforeEach(asyncIt(function(done) {
-    this.driver.get("https://www.yahoo.com/");
-  }));
+  beforeEach(async function(done) {
+    await driver.get("https://www.yahoo.com/");
+    done();
+  });
 
-  it('Does YAHOO Search work', asyncIt(function(done){
-    var driver = this.driver, searchResults;
-    search(driver, "Pokemon");
-    searchResults = driver.findElements(By.css('[class*="dd algo"]'));
+  doIt('Does YAHOO Search work', async function(done){
+    var searchResults;
+    await search("Pokemon");
+    searchResults = await driver.findElements(By.css('[class*="dd algo"]'));
     expect(searchResults).toBeTruthy();
     expect(searchResults.length).toBeGreaterThan(1);
-    searchResults[1].click();
-  }));
+    await searchResults[1].click();
+  });
 });

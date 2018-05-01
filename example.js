@@ -1,85 +1,87 @@
-var async = require('asyncawait/async'),
-    await = require('asyncawait/await'),
-    request = require('request'),
+var request = require('request'),
     fs = require('fs'),
     webdriver = require('selenium-webdriver'),
     By = webdriver.By,
     driver,
     utils = require('./utils.js');
 
-function getProfileLinks() {
-    var profileLinks = {};
-    driver.findElements(By.css('dl.threadlastpost.td')).forEach(function(td){
-        var profileLink;
-        profileLink = td.findElement(By.tagName("a")).getAttribute('href');
-        profileLinks[profileLink] = null;
-    });
-    return Object.keys(profileLinks);
+async function getProfileLinks() {
+  return (await driver.findElements(By.css('dl.threadlastpost.td')))
+  .map(async function(td) {
+    return await td.findElement(By.tagName("a")).getAttribute('href');
+  });
 }
 
-function saveAvatarToFile(fileName,url) {
-    var bytes;
-    driver.get(url);
-    bytes = new Buffer(driver.takeScreenshot(), 'base64');
-    fs.writeFile(fileName+".png", bytes, 'utf8', function(err) {
-        if(err) {
-            this.reject("Couldn't write "+fileName+": "+err.toString());
-        } else {
-            this.resolve(true);
-        }
-    }.bind(this));
-}
-saveAvatarToFile = utils.makeTimeoutPromise(saveAvatarToFile,3000);
-
-function main() {
-    var linkText = [], profileLinks = {};
+async function main() {
+    var linkTexts = [], profileLinks = {},
+      member_username, img_urls;
     driver = new webdriver.Builder('./chromedriver')
                  .withCapabilities({'browserName':'chrome'})
                  .build();
     driver.manage().timeouts().implicitlyWait(1000);
-    utils.awaitSeleniumDriver(driver);
-    driver._awaitWebElements = true;
-    driver.get("http://www.sanriotown.com");
-    utils.sleep(3000);
-    driver.switchTo().frame("iframe_header");
+    await driver.get("http://www.sanriotown.com");
+    console.log("wait 3 seconds, just because...")
+    await utils.sleep(3000);
+    await driver.switchTo().frame("iframe_header");
     console.log("1_________________________________");
-    driver.findElement(By.id("navbar")).findElements(By.tagName("a"))
-        .forEach(function(link){
-            console.log("  "+link.getAttribute("innerHTML"));
-        });
-    driver.findElement(By.id("forum")).click();
-    driver.sleep(3000);
+    (await driver.findElement(By.id("navbar")).findElements(By.tagName("a")))
+      .forEach(async function(link){
+          console.log("L_1 "+link);
+          console.log(">>>>"+(await link.getAttribute("innerHTML")));
+      });
+    for(navbar_link of (await driver.findElement(By.id("navbar"))
+      .findElements(By.tagName("a")))) {
+        console.log("L_2 "+navbar_link);
+        console.log(">>>>"+(await navbar_link.getAttribute("innerHTML")));
+    }
+    await driver.findElement(By.id("forum")).click();
+    console.log("wait 3 seconds again, just because...")
+    await driver.sleep(3000);
     console.log("2_________________________________");
-    driver.findElements(By.css("h2.forumtitle")).forEach(function(ft){
-        linkText.push(ft.findElement(By.tagName("a")).getText());
-    });
-    linkText.forEach(function(ltxt){
-        console.log("Click "+ltxt);
-        driver.findElement(By.linkText(ltxt)).click();
-        getProfileLinks().forEach(function(plink){
-            profileLinks[plink] = null;
-        });
-        await(driver.navigate().back());
-    });
+    (await driver.findElements(By.css("h2.forumtitle")))
+      .forEach(function(ft){
+        linkTexts.push(ft.findElement(By.tagName("a")).getText());
+      });
+    linkTexts = await Promise.all(linkTexts);
+    for(ltxt of linkTexts) {
+      console.log("Click "+ltxt);
+      await driver.findElement(By.linkText(ltxt)).click();
+      console.log(await Promise.all(await getProfileLinks()));
+      (await Promise.all(await getProfileLinks()))
+      .forEach(function(plink){
+        profileLinks[plink] = null;
+      });
+      await driver.navigate().back();
+    }
     console.log("3_________________________________");
-    Object.keys(profileLinks).forEach(function(url) {
-        var member_username,img_urls;
-        driver.get(url);
-        member_username = driver.findElement(By.className("member_username"))
+    console.log(Object.keys(profileLinks).length + " links found");
+    for(url of Object.keys(profileLinks)) {
+        await driver.get(url);
+        member_username = await driver
+                                .findElement(By.className("member_username"))
                                 .getText();
-        img_urls = driver.findElements(By.id("user_avatar"));
+        console.log(member_username);
+        img_urls = await driver.findElements(By.id("user_avatar"));
         if(!img_urls.length) {
-            return;
+           console.log("Skipping "+member_username+". No avatar found.");
+           continue;
         }
-        console.log("  "+url);
-        await(saveAvatarToFile(member_username, 
-                               img_urls[0].getAttribute('src')));
-    });
-    driver.quit();
+        console.log("img URL  "+url);
+        await driver.get(url);
+        fs.writeFileSync(member_username+'.png',
+                         new Buffer(await driver.takeScreenshot(), 'base64'),
+                         'utf8');
+    };
 }
 
-async(main)().catch(async(function(e) {
-    console.error(e.toString());
-    console.error(e.stack);
-    driver.quit();
-}));
+main()
+.then(function() {
+  console.log('Looks like we are done!');
+  driver.quit();
+})
+.catch(function(e) {
+  console.log("MAIN BEGIN ESTACK");
+  console.error(e.stack);
+  console.log("MAIN END ESTACK");
+  driver.quit();
+});

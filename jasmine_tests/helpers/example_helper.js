@@ -1,24 +1,25 @@
 'use strict';
 
 var webdriver = require('selenium-webdriver'),
-    async = require('asyncawait/async'),
-    await = require('asyncawait/await'),
     fs = require('fs'),
-    defaultTimeOut = 30 * 1000,
-    experimental = require('../utils/experimental.js'),
-    asyncIt = experimental.asyncIt;
+    defaultTimeOut = 60 * 1000,
+    slowTimeOut = 1200 * 1000,
+    experimental = require('../utils/experimental.js');
 
 jasmine.DEFAULT_TIMEOUT_INTERVAL = defaultTimeOut;
 experimental.jasmineMoreInfo(jasmine);
 
-beforeAll(function(done) {
+function getTimeStamp() {
+  return new Date().toISOString().replace(/T/,'')
+    .replace(/\..+/,'').replace(/:/g,'').replace(/-/g,'');
+}
+
+
+beforeAll(function() {
   this.driver = new webdriver.Builder('./chromedriver')
                 .withCapabilities({'browserName': 'chrome'})
                 .build();
-  experimental.awaitSeleniumDriver(this.driver);
-  this.driver._awaitWebElements = true;
-  this.driver.manage().timeouts().implicitlyWait(1000);
-  done();
+  this.driver.manage().timeouts().implicitlyWait(5000);
 });
 
 beforeEach(function() {
@@ -26,20 +27,22 @@ beforeEach(function() {
   jasmine.DEFAULT_TIMEOUT_INTERVAL = defaultTimeOut;
   if (specDesc.indexOf(":SLOW") > -1 ) {
     console.log("SLOW TEST: "+specDesc);
-    jasmine.DEFAULT_TIMEOUT_INTERVAL = 1200 * 1000;
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = slowTimeOut;
   }
 });
 
-afterEach(asyncIt(function(done) {
-  if(jasmine.moreInfo.currentSpec.failedExpectations.length) {
+afterEach(async function(done) {
+  if(jasmine.testcaseFailed) {
     fs.writeFileSync(
-      jasmine.moreInfo.currentSpec.fullName + ".png",
-      this.driver.takeScreenshot(),
+      jasmine.moreInfo.currentSpec.fullName + "." + getTimeStamp() + ".png",
+      await this.driver.takeScreenshot(),
       'base64');
   }
-}));
+  done();
+});
 
-afterAll(asyncIt(function(done) {
-  this.driver.close();
-  this.driver.quit();
-}));
+afterAll(async function(done) {
+  await this.driver.close();
+  await this.driver.quit();
+  done();
+});

@@ -2,22 +2,80 @@
 
 # nodejsSeleniumWrapper (and other stuff)
 
-This is just a wild experiment. I'm tired of .then() everywhere and I'm not the world's biggest fan of nodejs in general, but reading some article somewhere I came to learn of async & await:
-* https://github.com/yortus/asyncawait
-* npm install asyncawait
+This branch is pretty much the same as master, except everything has been changed to use nodejs's built-in async/await.
 
-It seemed too good to be true so I went to try some things and sure enough, this thing really works and removes the madness
-of .then(func(){}) chains all over the place. Between that and confusing errors when a promise chain didn't resolve properly, I use to go crazy trying to write selenium tests. When automating a browser I pretty much always want my steps to be synchronous so I decided to see how far I could (ab)use this asyncawait module. Turns out you can really get rid of a lot of the nodejs madness using asyncawait in interesting way. Look at```example.js```to see a selenium test```(function main())```with no .then()'s in it. Then look at```utils.js```to see how I altered a bunch of webdriver methods to stop returning promises and instead make await() fully resolve them before returning to testcode. 
+Unfortunately, the built-in nodejs await only works if the immediate containing function is defined as async. The 3rdparty await worked
+as long as some ancestor in the function call stack was an async function. Thus I cannot do the cool trick like in the master-branch where
+I wrapped all the Selenium methods in blocking-asyncawait functions that freed me from having to type await all over the test code.
 
-* Other stuff
 
-> Besides the functions```awaitSeleniumDriver & awaitWebElements```....
-> 
->- You'll see inside```utils.js```that I also have a ```sleep(milliseconds)``` that you can use.
->
->- You'll see the ```makeTimeoutPromise(fnptr,millisecons)``` method. Any function wrapped by this method, will have access to a ```this.resolve()``` and ```this.reject()```. One of them must happen before ```milliseconds``` after the function is called or you'll get a timeout. If you give ```null``` as the maxRunTime then the promise can run foever. 
->
+To make it clearer, consider the following code:
 
-This may not be too special to hardcore nodejs people out there, but for me async&await takes nodejs from unviable to actually usable. Though I still just pick a synchronous language like ruby/python/etc, if nodejs is a __requirement__ for a project I'm working on, I'd have to be allowed to use asyncawait or I'd just go crazy.
+```
+var async = require('asyncawait/async'),
+    await = require('asyncawait/await');
 
-* And look into the jasmine_tests dir for even more craziness
+function sleep1(milliseconds) {
+  await(new Promise(function(resolve, reject) {
+    setTimeout(function() { resolve(true); }, milliseconds);
+  }));
+} 
+
+async function sleep2(milliseconds) {
+  await new Promise(function(resolve, reject) {   
+    setTimeout(function() {
+        resolve(true);
+    }, milliseconds);
+  });
+}
+
+function sleep3(milliseconds) {
+  (async function() {
+    await new Promise(function(resolve, reject) { 
+      setTimeout(function() {
+          resolve(true);
+      }, milliseconds);
+    });
+  })();
+}
+
+test1 = async(function() {
+  console.log(1);
+  sleep1(1000);
+  console.log(2);
+  sleep1(1000);
+});
+
+async function test2() {
+  console.log(3);
+  sleep2(1000);
+  console.log(4);
+  sleep2(1000);
+}
+
+function test3() {
+  console.log(5);
+  sleep3(1000);
+  console.log(6);
+  sleep3(1000);
+}
+
+test1();
+test2();
+test3();
+```
+
+The result that this prints out is:
+
+```
+1
+3
+4
+5
+6
+2
+```
+
+Looking at this for awhile will show the issue.
+`NOTE: async(function(){}) is the 3rdparty, async function(){} is the built-in`
+
