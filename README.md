@@ -6,6 +6,8 @@ This is just a wild experiment. I'm tired of .then() everywhere and I'm not the 
 * https://github.com/yortus/asyncawait
 * npm install asyncawait
 
+## UPDATE: Nodejs v8.11.1 has built-in async+await. It's not 100% the same but still works very good, take a look at the branch nodejs_native_asyncawait
+
 It seemed too good to be true so I went to try some things and sure enough, this thing really works and removes the madness
 of .then(func(){}) chains all over the place. Between that and confusing errors when a promise chain didn't resolve properly, I use to go crazy trying to write selenium tests. When automating a browser I pretty much always want my steps to be synchronous so I decided to see how far I could (ab)use this asyncawait module. Turns out you can really get rid of a lot of the nodejs madness using asyncawait in interesting way. Look at```example.js```to see a selenium test```(function main())```with no .then()'s in it. Then look at```utils.js```to see how I altered a bunch of webdriver methods to stop returning promises and instead make await() fully resolve them before returning to testcode. 
 
